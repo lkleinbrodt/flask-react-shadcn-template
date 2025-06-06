@@ -1,3 +1,37 @@
+data/
+!data/.gitkeep
+
+.cursor/
+.specstory/
+
+# Python
+venv/
+__pycache__/
+*.py[cod]
+*.so
+.env
+env/
+db.sqlite3
+app.db
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.pnp
+frontend/.pnp.js
+frontend/coverage
+
+# IDE & OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Flask
+flask_session/
+instance/
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -25,6 +59,8 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+
+
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
