@@ -1,0 +1,25 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Start Backend",
+      "type": "shell",
+      "command": "source venv/bin/activate && flask run --debug --host=0.0.0.0 --port=5002",
+      "problemMatcher": [],
+      "isBackground": true
+    },
+    {
+      "label": "Start Frontend",
+      "type": "shell",
+      "command": "source ~/.zshrc && cd frontend && npm run dev",
+      "problemMatcher": [],
+      "isBackground": true
+    },
+    {
+      "label": "Run App Locally",
+      "dependsOn": ["Start Backend", "Start Frontend"],
+      "dependsOrder": "parallel",
+      "problemMatcher": []
+    }
+  ]
+}

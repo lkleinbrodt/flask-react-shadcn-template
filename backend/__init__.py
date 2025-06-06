@@ -1,3 +1,5 @@
+import os
+
 from flask import Flask
 
 from backend.config import Config
@@ -13,7 +15,8 @@ def create_app(config_class: Config):
     app.config.from_object(config_class)
     jwt.init_app(app)
     db.init_app(app)
-    migrate.init_app(app, db)
+    migrations_dir = os.path.join(app.root_path, "migrations")
+    migrate.init_app(app, db, directory=migrations_dir)
     cors.init_app(app)
 
     # Import blueprints
