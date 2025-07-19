@@ -29,51 +29,19 @@ export const authService = {
   },
 
   /**
-   * Parses the access token received (typically from URL after backend callback)
-   * and extracts user profile information.
-   * Sets the access token in a cookie.
-   * @param accessToken - The JWT access token string.
-   * @returns The user's profile information.
+   * DEPRECATED: This method is no longer needed with the new authentication flow.
+   * Tokens are now set directly as cookies by the backend.
    */
   handleLoginSuccess: (accessToken: string): UserProfile => {
-    try {
-      // Store the new access token (this is the primary place it's set initially)
-      Cookies.set("accessToken", accessToken, {
-        secure: import.meta.env.PROD,
-        sameSite: "Lax",
-      });
-
-      const decodedPayload = JSON.parse(atob(accessToken.split(".")[1]));
-      const userProfile: UserProfile = {
-        id: decodedPayload.sub,
-        email: decodedPayload.email,
-        name: decodedPayload.name,
-        image: decodedPayload.image || decodedPayload.picture, // Handle both
-      };
-
-      // Also update the 'user' cookie which AuthContext might read for initial state
-      Cookies.set(
-        "user",
-        JSON.stringify({
-          ...userProfile,
-          token: accessToken, // Keep token in user object for backward compatibility
-        }),
-        {
-          secure: import.meta.env.PROD,
-          sameSite: "Lax",
-        }
-      );
-
-      return userProfile;
-    } catch (err) {
-      console.error(
-        "Invalid access token format during handleLoginSuccess:",
-        err
-      );
-      Cookies.remove("accessToken"); // Clean up if token is bad
-      Cookies.remove("user");
-      throw new Error("Invalid access token format");
-    }
+    console.warn("handleLoginSuccess is deprecated - tokens are now set by backend");
+    // Legacy method kept for backward compatibility but not used in new flow
+    const decodedPayload = JSON.parse(atob(accessToken.split(".")[1]));
+    return {
+      id: decodedPayload.sub,
+      email: decodedPayload.email,
+      name: decodedPayload.name,
+      image: decodedPayload.image || decodedPayload.picture,
+    };
   },
 
   /**
@@ -92,30 +60,36 @@ export const authService = {
    * Useful for immediate UI feedback during logout process.
    */
   clearClientSideCookies: (): void => {
+    // Clear legacy cookies for backward compatibility
     Cookies.remove("accessToken");
-    Cookies.remove("user"); // User profile info
+    Cookies.remove("user");
+    // Clear new auth cookies (will be cleared by backend but good to be explicit)
+    Cookies.remove("access_token_cookie");
+    Cookies.remove("refresh_token_cookie");
     localStorage.removeItem("authError"); // Any stored auth errors
   },
 
   /**
-   * Retrieves the current user profile from cookies.
-   * This is useful for initializing AuthContext state without re-parsing the token every time.
+   * DEPRECATED: This method is no longer needed with TanStack Query approach.
+   * User data is now fetched fresh from the server when needed.
    */
   getCurrentUserProfile: (): User | null => {
-    const userCookie = Cookies.get("user");
-    const tokenCookie = Cookies.get("accessToken");
-
-    if (userCookie && tokenCookie) {
-      // Ensure token also exists, indicating a likely valid session
-      try {
-        return JSON.parse(userCookie) as User;
-      } catch (e) {
-        console.error("Failed to parse user cookie:", e);
-        Cookies.remove("user"); // Clean up bad cookie
-        return null;
-      }
-    }
+    console.warn("getCurrentUserProfile is deprecated - use TanStack Query in AuthContext instead");
     return null;
+  },
+
+  /**
+   * Fetches the current user data from the backend using the /api/users/me endpoint.
+   * This ensures we always have fresh user data from the server.
+   */
+  getMe: async (): Promise<UserProfile> => {
+    try {
+      const response = await axiosInstance.get<UserProfile>("/auth/me");
+      return response.data;
+    } catch (err) {
+      console.error("Failed to fetch user data:", err);
+      throw new Error("Failed to fetch user data");
+    }
   },
 
   /**
@@ -128,29 +102,8 @@ export const authService = {
         "/auth/refresh"
       );
 
-      // Store the new access token
-      if (response.data.access_token) {
-        Cookies.set("accessToken", response.data.access_token, {
-          secure: import.meta.env.PROD,
-          sameSite: "Lax",
-        });
-
-        // Update user cookie if it exists
-        const userCookie = Cookies.get("user");
-        if (userCookie) {
-          try {
-            const user = JSON.parse(userCookie);
-            user.token = response.data.access_token;
-            Cookies.set("user", JSON.stringify(user), {
-              secure: import.meta.env.PROD,
-              sameSite: "Lax",
-            });
-          } catch (e) {
-            console.error("Failed to update user cookie with new token:", e);
-          }
-        }
-      }
-
+      // The new access token is automatically set as a cookie by the backend
+      // No need to manually manage cookies in the new flow
       return response.data;
     } catch (err) {
       console.error("Failed to refresh token:", err);

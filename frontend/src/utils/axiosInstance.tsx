@@ -30,7 +30,8 @@ const processQueue = (error: unknown, token: string | null = null) => {
 // Add a request interceptor to inject the JWT token into the headers
 axiosInstance.interceptors.request.use(
   async (config) => {
-    const token = Cookies.get("accessToken");
+    // Try new cookie name first, then fall back to legacy for backward compatibility
+    const token = Cookies.get("access_token_cookie") || Cookies.get("accessToken");
 
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;

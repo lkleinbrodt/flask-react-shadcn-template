@@ -3,7 +3,6 @@ export interface User {
   email: string;
   name: string;
   image: string;
-  token: string;
 }
 
 export interface AuthError {

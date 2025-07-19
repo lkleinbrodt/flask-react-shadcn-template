@@ -1,99 +1,75 @@
-import type { AuthState, User } from "@/types/auth";
+import type { User } from "@/types/auth";
 import {
   type ReactNode,
   createContext,
   useCallback,
   useContext,
-  useEffect,
-  useState,
 } from "react";
-
+import { useQuery } from "@tanstack/react-query";
 import Cookies from "js-cookie";
 import { authService } from "@/services/auth";
 
-interface AuthContextType extends AuthState {
-  setUser: (user: User | null) => void;
+interface AuthContextType {
+  user: User | null;
+  loading: boolean;
+  error: Error | null;
   logout: () => Promise<void>;
   login: (from?: string) => Promise<void>;
   isAuthenticated: () => boolean;
+  refetch: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AuthState>({
-    user: null,
-    loading: true,
-    error: null,
+  // Check if we have an access token to determine if we should fetch user data
+  const hasAccessToken = !!Cookies.get("access_token_cookie");
+  
+  // Use TanStack Query to fetch user data if we have a token
+  const {
+    data: user,
+    isLoading,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: ["user"],
+    queryFn: authService.getMe,
+    enabled: hasAccessToken, // Only fetch if we have a token
+    retry: false, // Don't retry on auth errors
+    refetchOnWindowFocus: false, // Don't refetch on window focus
+    staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
   });
 
-  // Function to initialize auth state from cookies
-  const initializeAuth = useCallback(() => {
-    const userProfile = authService.getCurrentUserProfile();
-    setState((prev) => ({
-      ...prev,
-      user: userProfile,
-      loading: false,
-    }));
-  }, []);
-
-  useEffect(() => {
-    initializeAuth();
-  }, [initializeAuth]);
-
-  const handleSetUser = (newUser: User | null) => {
-    setState((prev) => ({ ...prev, user: newUser, error: null }));
-    if (newUser) {
-      Cookies.set("user", JSON.stringify(newUser), {
-        secure: import.meta.env.PROD,
-        sameSite: "Lax",
-      });
-    } else {
-      Cookies.remove("user");
-    }
-  };
-
   const logout = async () => {
-    // Update local context state for immediate UI feedback
-    //we dont do this, because our logic will clear the cookies then force a page refresh, and a page refresh will have it set the state using cookies
-    // setState((prev) => ({
-    //   ...prev,
-    //   user: null,
-    //   loading: false,
-    //   error: null,
-    // }));
-
-    // Call authService.logout which will clear client cookies and trigger the redirect
+    // Clear any cached user data
+    refetch();
+    // Call authService.logout which will clear client cookies and redirect
     await authService.logout();
-    // The page will be redirected by the backend, no need for additional navigation logic
   };
 
   const login = async (from: string = "/") => {
-    setState((prev) => ({ ...prev, loading: true, error: null }));
     try {
       authService.initiateLogin("google", from);
     } catch (err) {
       console.error("Failed to initiate login:", err);
-      setState((prev) => ({
-        ...prev,
-        loading: false,
-        error: { message: "Failed to initiate login" },
-      }));
+      throw new Error("Failed to initiate login");
     }
   };
 
   const isAuthenticated = useCallback(() => {
-    return !!state.user && !!Cookies.get("accessToken");
-  }, [state.user]);
+    return !!user && !!Cookies.get("access_token_cookie");
+  }, [user]);
 
   return (
     <AuthContext.Provider
       value={{
-        ...state,
-        setUser: handleSetUser,
+        user: user || null,
+        loading: isLoading,
+        error: error || null,
         logout,
         login,
         isAuthenticated,
+        refetch,
       }}
     >
       {children}
