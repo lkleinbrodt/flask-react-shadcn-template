@@ -67,6 +67,7 @@ echo -e "${GREEN}Setting up database...${NC}"
 # Only initialize if migrations directory doesn't exist or is empty
 if [ ! -d "backend/migrations" ] || [ -z "$(ls -A backend/migrations 2>/dev/null)" ]; then
     flask db init --directory backend/migrations
+    flask db migrate --directory backend/migrations -m "Initial migration"
 else
     echo "Migrations directory already exists, skipping initialization"
 fi
