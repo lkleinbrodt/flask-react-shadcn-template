@@ -5,11 +5,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { NavLink, useLocation } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
+import { NavLink } from "react-router-dom";
 import UserItem from "@/components/UserItem";
-import { useAuth } from "@/contexts/AuthContext";
+import { useNavigationAuth } from "@/hooks/useNavigationAuth";
 import { useState } from "react";
 
 const getPageTitle = (pathname: string) => {
@@ -20,14 +20,14 @@ const getPageTitle = (pathname: string) => {
 };
 
 export default function FloatingNav() {
-  const { user, login } = useAuth();
-  const location = useLocation();
-  const pageTitle = getPageTitle(location.pathname);
+  const { shouldShowLogin, shouldShowUser, handleLogin, loading } =
+    useNavigationAuth();
+  const pageTitle = getPageTitle(window.location.pathname);
   const [isOpen, setIsOpen] = useState(false);
 
-  const handleLogin = () => {
+  const handleLoginClick = () => {
     setIsOpen(false);
-    login(location.pathname);
+    handleLogin();
   };
 
   return (
@@ -65,20 +65,24 @@ export default function FloatingNav() {
           <DropdownMenuSeparator />
 
           <div className="p-2">
-            {user ? (
+            {loading ? (
+              <div className="flex items-center justify-center py-2">
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              </div>
+            ) : shouldShowUser ? (
               <div className="flex items-center space-x-2">
                 <UserItem />
               </div>
-            ) : (
+            ) : shouldShowLogin ? (
               <Button
                 variant="outline"
                 size="sm"
                 className="w-full"
-                onClick={handleLogin}
+                onClick={handleLoginClick}
               >
                 Login
               </Button>
-            )}
+            ) : null}
           </div>
         </DropdownMenuContent>
       </DropdownMenu>

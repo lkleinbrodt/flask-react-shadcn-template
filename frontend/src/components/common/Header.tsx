@@ -1,8 +1,7 @@
-import { NavLink, useLocation } from "react-router-dom";
-
 import { Button } from "@/components/ui/button";
+import { NavLink } from "react-router-dom";
 import UserItem from "@/components/UserItem";
-import { useAuth } from "@/contexts/AuthContext";
+import { useNavigationAuth } from "@/hooks/useNavigationAuth";
 
 const getPageTitle = (pathname: string) => {
   switch (pathname) {
@@ -12,9 +11,9 @@ const getPageTitle = (pathname: string) => {
 };
 
 export default function Header() {
-  const { user, login } = useAuth();
-  const location = useLocation();
-  const pageTitle = getPageTitle(location.pathname);
+  const { shouldShowLogin, shouldShowUser, handleLogin, loading } =
+    useNavigationAuth();
+  const pageTitle = getPageTitle(window.location.pathname);
 
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-background">
@@ -36,13 +35,15 @@ export default function Header() {
           </NavLink>
         </nav>
         <div className="flex flex-1 items-center justify-end space-x-4">
-          {user ? (
+          {loading ? (
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          ) : shouldShowUser ? (
             <UserItem />
-          ) : (
-            <Button variant="outline" onClick={() => login(location.pathname)}>
+          ) : shouldShowLogin ? (
+            <Button variant="outline" onClick={handleLogin}>
               Login
             </Button>
-          )}
+          ) : null}
         </div>
       </div>
     </header>
