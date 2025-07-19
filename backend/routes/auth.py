@@ -6,8 +6,10 @@ from flask import Blueprint, current_app, jsonify, make_response, redirect, requ
 from flask_jwt_extended import (
     create_access_token,
     create_refresh_token,
+    get_current_user,
     get_jwt_identity,
     jwt_required,
+    set_access_cookies,
     set_refresh_cookies,
     unset_jwt_cookies,
 )
@@ -93,17 +95,20 @@ def oauth_callback(provider):
     # Create refresh token
     refresh_token = create_refresh_token(identity=str(user.id))
 
-    # Prepare redirect URL with access token
-    redirect_url = f"{current_app.config['FRONTEND_URL']}/auth?access_token={access_token}&next={next_path}"
+    # NEW APPROACH: Set both tokens as cookies and redirect to a clean URL
+    redirect_url = f"{current_app.config['FRONTEND_URL']}/auth/callback?next={next_path}"
 
     # Create response with redirect
     response = make_response(redirect(redirect_url))
 
-    # Set refresh token as HttpOnly cookie
+    # Set refresh token as HttpOnly cookie (as it was before)
     set_refresh_cookies(
         response,
         refresh_token,
     )
+
+    # Set access token as a JS-readable cookie
+    set_access_cookies(response, access_token)
 
     logger.debug(
         f"OAuth callback successful for user {user.id}. Redirecting with access token and refresh cookie."
@@ -135,6 +140,21 @@ def refresh_token():
 
     logger.debug(f"Token refreshed for user {current_user_identity}")
     return jsonify(access_token=new_access_token), 200
+
+
+@auth_bp.route("/me", methods=["GET"])
+@jwt_required()
+def get_me():
+    """Get the profile of the currently authenticated user."""
+    user = get_current_user()  # Relies on the user_lookup_loader
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+    return jsonify({
+        "id": user.id,
+        "name": user.name,
+        "email": user.email,
+        "image": user.image,
+    })
 
 
 @auth_bp.route("/logout", methods=["GET"])
