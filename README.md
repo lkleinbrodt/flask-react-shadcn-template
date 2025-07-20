@@ -102,6 +102,15 @@ You need to create two environment files:
     STRIPE_PUBLISHABLE_KEY_TESTING=pk_test_...
     STRIPE_SECRET_KEY_TESTING=sk_test_...
     STRIPE_WEBHOOK_SECRET=whsec_...
+
+    # Email Server Configuration (for password reset)
+    # Example for SendGrid (use 'smtp.gmail.com' for Gmail, etc.)
+    MAIL_SERVER=smtp.sendgrid.net
+    MAIL_PORT=587
+    MAIL_USE_TLS=true
+    MAIL_USERNAME=apikey  # For SendGrid, the username is literally 'apikey'
+    MAIL_PASSWORD=your_sendgrid_api_key
+    MAIL_DEFAULT_SENDER="Your Name <noreply@yourdomain.com>"
     ```
 
 2.  **Frontend (`frontend/.env.development`):** Create this file inside the `frontend` directory.
@@ -153,26 +162,23 @@ The frontend uses Vite for a fast development experience and is structured by fe
 
 This section explains how common tasks are implemented, which is essential for an AI agent to understand the coding style.
 
-### Authentication Flow (OAuth + JWT)
+### Authentication Flow (HttpOnly Cookies)
 
-The authentication flow is a multi-step process between the frontend and backend.
+This template uses a secure, modern authentication pattern where JWTs (Access and Refresh tokens) are stored in `HttpOnly`, `Secure` cookies. This is a best practice that protects against XSS attacks. The frontend code never touches the tokens directly.
 
-1.  **Initiation (Frontend):** A user clicks a "Login" button. This calls the `login()` function from the `useAuth` hook.
-2.  **Redirect to Backend:** `authService.initiateLogin()` redirects the browser to the backend endpoint: `/api/auth/authorize/<provider>`.
-3.  **OAuth Dance (Backend):** The backend endpoint (`/api/auth/authorize/...`) redirects the user to the OAuth provider (e.g., Google).
-4.  **Callback to Backend:** After successful authentication, the provider redirects back to the backend callback URL: `/api/auth/callback/<provider>`.
-5.  **Token Generation (Backend):** The callback endpoint:
-    - Receives user info from the provider.
-    - Creates or updates the `User` in the database.
-    - Generates a short-lived **JWT access token** and a long-lived **JWT refresh token**.
-    - Sets the **refresh token** as a secure, `HttpOnly` cookie.
-    - Redirects the browser back to the frontend, passing the **access token** as a URL parameter: `http://localhost:5173/auth?access_token=...`.
-6.  **Token Storage (Frontend):**
-    - The `/auth` route renders `AuthPage.tsx`.
-    - This page grabs the access token from the URL.
-    - `authService.handleLoginSuccess()` stores the access token in a standard browser cookie.
-    - It then performs a full page reload to the home page (`/`).
-7.  **Authenticated State:** The `AuthContext` initializes, reads the user data and access token from cookies, and the user is now logged in.
+1.  **Initiation (Frontend):** A user navigates to the `/login` page or clicks a "Login with Google" button.
+2.  **Authentication Request:**
+    - **Password Login:** The frontend sends credentials to `/api/auth/login`.
+    - **OAuth Login:** The browser is redirected to `/api/auth/authorize/google`, which in turn redirects to Google's OAuth screen.
+3.  **Token Generation (Backend):** After successful authentication (either via password check or OAuth callback), the Flask backend generates a short-lived **JWT access token** and a long-lived **JWT refresh token**.
+4.  **Set Secure Cookies (Backend):** The backend sets the tokens in two separate `HttpOnly` cookies. The browser will now automatically include these cookies on all subsequent requests to the API.
+5.  **Redirect to Frontend:** The backend redirects the user back to the frontend application (e.g., to `/auth/callback` which then redirects to `/`).
+6.  **Authenticated State (Frontend):**
+    - The `AuthContext` provider loads. Since it cannot read the `HttpOnly` cookies, it sends a request to the `/api/auth/me` endpoint.
+    - The browser automatically attaches the `access_token_cookie`.
+    - The backend validates the JWT and returns the user's data (`id`, `name`, `email`).
+    - The `AuthContext` sets the user state, and the application now reflects that the user is logged in.
+7.  **Automatic Token Refresh:** If an API call fails with a `401 Unauthorized` error (meaning the access token expired), a pre-configured `axios` interceptor automatically makes a request to `/api/auth/refresh`. The browser sends the `refresh_token_cookie`, the backend issues a new set of tokens, and the original failed request is retried seamlessly.
 
 ### Making Authenticated API Calls
 
@@ -196,14 +202,14 @@ async function fetchProfile() {
 
 **How it Works:**
 
-1.  **Request Interceptor:** Automatically attaches the `Authorization: Bearer <token>` header to every outgoing request by reading the `accessToken` cookie.
+1.  **Request Interceptor:** Automatically adds the CSRF token to the `X-CSRF-TOKEN` header for requests that require CSRF protection.
 2.  **Response Interceptor (Token Refresh):**
     - If an API call returns a `401 Unauthorized` error, it means the access token has expired.
-    - The interceptor automatically calls the `/api/auth/refresh` endpoint using the `HttpOnly` refresh token cookie.
-    - If successful, it receives a new access token, updates the `accessToken` cookie, and **transparently retries the original failed request.**
-    - If the refresh fails, it logs the user out.
+    - The interceptor automatically calls the `/api/auth/refresh` endpoint. The browser sends the `HttpOnly` refresh token cookie automatically.
+    - If successful, the backend sets new `HttpOnly` cookies, and the interceptor **transparently retries the original failed request.**
+    - If the refresh fails, it redirects the user to the login page.
 
-This pattern means you **do not need to manually handle token refreshing** in your components or services.
+This pattern means you **do not need to manually handle token refreshing** in your components or services. The `HttpOnly` cookies are managed entirely by the browser and backend.
 
 ### Handling API Errors
 

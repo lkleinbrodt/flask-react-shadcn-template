@@ -15,7 +15,9 @@ class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY")
     if not SECRET_KEY:
         SECRET_KEY = str(uuid.uuid4())
-    JWT_SECRET_KEY = SECRET_KEY
+
+    # Use a dedicated JWT secret key (can be same as SECRET_KEY if not specified)
+    JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY", SECRET_KEY)
     ENV = os.environ.get("ENV", "development").lower()
 
     CORS_HEADERS = "Content-Type"
@@ -29,24 +31,29 @@ class Config:
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(minutes=15)  # Short-lived access token
     JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=30)  # Long-lived refresh token
 
-    # Tell Flask-JWT-Extended to look for JWTs in headers and cookies
-    JWT_TOKEN_LOCATION = ["headers", "cookies"]
+    # Tell Flask-JWT-Extended to look for JWTs only in cookies (more secure)
+    JWT_TOKEN_LOCATION = ["cookies"]
 
-    # Only allow JWT cookies to be sent over HTTPS
-    JWT_COOKIE_SECURE = ENV.lower() == "production"  # True in production, False in dev
-
-    # Set SameSite for CSRF protection
-    JWT_COOKIE_SAMESITE = "Lax"  # "Lax" or "Strict". "Lax" is often a good balance
-
-    # Configure which cookie(s) to look for JWTs in
-    JWT_ACCESS_COOKIE_NAME = "access_token_cookie"
-    JWT_REFRESH_COOKIE_NAME = "refresh_token_cookie"
-    JWT_COOKIE_PATH = "/api/auth"
-    JWT_REFRESH_COOKIE_PATH = "/api/auth/refresh"
-
-    # CSRF protection for cookie-based JWTs
+    # Enable CSRF protection for cookies
     JWT_COOKIE_CSRF_PROTECT = True
-    JWT_CSRF_IN_COOKIES = True
+
+    # Set cookie security settings
+    # In production, this should be True. For development, False.
+    JWT_COOKIE_SECURE = os.getenv("FLASK_ENV") == "production"
+
+    # Set SameSite to 'Lax' to prevent most CSRF attacks
+    # Can be 'Strict' for higher security if it doesn't break cross-domain functionality
+    JWT_COOKIE_SAMESITE = "Lax"
+
+    # Explicitly set cookie domain and path for development
+    JWT_COOKIE_DOMAIN = None  # Let browser set domain automatically
+    JWT_COOKIE_PATH = "/"  # Available on all paths
+
+    # Ensure HttpOnly is always True. This prevents client-side JS from accessing the cookie.
+    JWT_COOKIE_HTTPONLY = True
+
+    # Flask-JWT-Extended will use sensible defaults for cookie names and paths
+    # Removed custom JWT_ACCESS_COOKIE_NAME, JWT_REFRESH_COOKIE_NAME, JWT_COOKIE_PATH, etc.
 
     OAUTH_CREDENTIALS = {
         "google": {
@@ -54,6 +61,19 @@ class Config:
             "secret": os.environ.get("GOOGLE_CLIENT_SECRET"),
         }
     }
+
+    # Email configuration
+    MAIL_SERVER = os.environ.get("MAIL_SERVER")
+    MAIL_PORT = int(os.environ.get("MAIL_PORT", 587))
+    MAIL_USE_TLS = os.environ.get("MAIL_USE_TLS", "true").lower() in ["true", "on", "1"]
+    MAIL_USE_SSL = os.environ.get("MAIL_USE_SSL", "false").lower() in [
+        "true",
+        "on",
+        "1",
+    ]
+    MAIL_USERNAME = os.environ.get("MAIL_USERNAME")
+    MAIL_PASSWORD = os.environ.get("MAIL_PASSWORD")
+    MAIL_DEFAULT_SENDER = os.environ.get("MAIL_DEFAULT_SENDER", "noreply@example.com")
 
 
 class DevelopmentConfig(Config):
@@ -87,3 +107,4 @@ class TestingConfig(Config):
     SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
     STRIPE_PUBLISHABLE_KEY = os.environ.get("STRIPE_PUBLISHABLE_KEY_TESTING")
     STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY_TESTING")
+    MAIL_SUPPRESS_SEND = True  # Do not send emails during tests

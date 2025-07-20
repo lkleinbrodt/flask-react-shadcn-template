@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 import { Skeleton } from "@/components/ui/skeleton";
+import { User } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 const UserItem = () => {
@@ -32,26 +33,42 @@ const UserItem = () => {
 
   const name = user?.name;
   const email = user?.email;
+
+  // Generate initials from name if available, otherwise use first letter of email
   const initials = name
-    ?.split(" ")
-    .map((n) => n[0])
-    .join("");
+    ? name
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+    : email?.charAt(0).toUpperCase() || "U";
+
+  // Determine what to display as the main text
+  const displayName = name || email;
+  const displaySubtext = name ? email : null;
 
   return (
     <div className="p-1">
       <DropdownMenu>
         <DropdownMenuTrigger className="flex items-start w-full gap-2 rounded-[8px] p-1">
           <Avatar>
-            <AvatarImage src={user!.image ?? ""} />
-            <AvatarFallback>{initials}</AvatarFallback>
+            <AvatarImage src={user.image || ""} />
+            <AvatarFallback>
+              {user.image ? <User className="h-6 w-6" /> : initials}
+            </AvatarFallback>
           </Avatar>
           <div>
-            <div className="text-lg font-bold text-foreground">{name}</div>
-            <div className="text-xs text-muted-foreground">{email}</div>
+            <div className="text-lg font-bold text-foreground">
+              {displayName}
+            </div>
+            {displaySubtext && (
+              <div className="text-xs text-muted-foreground">
+                {displaySubtext}
+              </div>
+            )}
           </div>
         </DropdownMenuTrigger>
         <DropdownMenuContent>
-          <DropdownMenuLabel>{name}</DropdownMenuLabel>
+          <DropdownMenuLabel>{displayName}</DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={logout}>Sign out</DropdownMenuItem>
         </DropdownMenuContent>

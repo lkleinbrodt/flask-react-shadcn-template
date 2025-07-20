@@ -3,7 +3,13 @@ export interface User {
   email: string;
   name: string;
   image: string;
-  token: string;
+  // token: string; // REMOVED: No longer storing tokens in JS
+}
+
+export interface UserCredentials {
+  email: string;
+  password?: string; // Optional for OAuth cases
+  name?: string; // Optional for registration
 }
 
 export interface AuthError {

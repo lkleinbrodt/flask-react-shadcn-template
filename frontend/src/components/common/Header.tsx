@@ -1,4 +1,4 @@
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import UserItem from "@/components/UserItem";
@@ -12,9 +12,14 @@ const getPageTitle = (pathname: string) => {
 };
 
 export default function Header() {
-  const { user, login } = useAuth();
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const location = useLocation();
   const pageTitle = getPageTitle(location.pathname);
+
+  const handleLogin = () => {
+    navigate("/login", { state: { from: location.pathname } });
+  };
 
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-background">
@@ -39,7 +44,7 @@ export default function Header() {
           {user ? (
             <UserItem />
           ) : (
-            <Button variant="outline" onClick={() => login(location.pathname)}>
+            <Button variant="outline" onClick={handleLogin}>
               Login
             </Button>
           )}

@@ -5,7 +5,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import UserItem from "@/components/UserItem";
@@ -20,14 +20,15 @@ const getPageTitle = (pathname: string) => {
 };
 
 export default function FloatingNav() {
-  const { user, login } = useAuth();
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const location = useLocation();
   const pageTitle = getPageTitle(location.pathname);
   const [isOpen, setIsOpen] = useState(false);
 
   const handleLogin = () => {
     setIsOpen(false);
-    login(location.pathname);
+    navigate("/login", { state: { from: location.pathname } });
   };
 
   return (
@@ -42,10 +43,14 @@ export default function FloatingNav() {
             <img src="/vite.svg" alt="logo" className="w-6 h-6" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-64 p-2" sideOffset={8}>
+        <DropdownMenuContent
+          align="start"
+          className="w-auto min-w-64 max-w-80 p-2"
+          sideOffset={8}
+        >
           <div className="flex items-center space-x-2 p-2">
-            <img src="/vite.svg" alt="logo" className="w-6 h-6" />
-            <span className="font-bold text-sm">{pageTitle}</span>
+            <img src="/vite.svg" alt="logo" className="w-6 h-6 flex-shrink-0" />
+            <span className="font-bold text-sm truncate">{pageTitle}</span>
           </div>
 
           <DropdownMenuSeparator />

@@ -1,19 +1,21 @@
-import { Outlet, useLocation } from "react-router-dom";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
 
+import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function PrivateRoute() {
-  const { user, loading, login } = useAuth();
+  const { user, loading } = useAuth();
   const location = useLocation();
 
-  // Wait for the authentication check to complete
   if (loading) {
-    return null;
+    // Show a loading skeleton or spinner while auth state is being determined
+    return <Skeleton className="h-24 w-full" />;
   }
 
   if (!user) {
-    login(location.pathname);
-    return null;
+    // Redirect them to the /login page, but save the current location they were
+    // trying to go to. This allows us to send them back after they log in.
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   return <Outlet />;

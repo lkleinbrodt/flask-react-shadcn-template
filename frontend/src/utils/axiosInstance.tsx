@@ -1,195 +1,83 @@
 import Cookies from "js-cookie";
-import { authService } from "@/services/auth";
 import axios from "axios";
 
-// Create an axios instance with base URL and default configuration
+// Add a custom property to the AxiosRequestConfig interface
+declare module "axios" {
+  export interface AxiosRequestConfig {
+    _suppressRedirect?: boolean;
+  }
+}
+
 const axiosInstance = axios.create({
-  baseURL: `${import.meta.env.VITE_BASE_URL}api`, // Base URL for all API calls
-  withCredentials: true, // Send cookies with requests
+  baseURL: `${import.meta.env.VITE_BASE_URL}api`,
+  // This ensures the browser sends HttpOnly cookies with each request
+  withCredentials: true,
 });
 
-// Flag to prevent multiple concurrent token refresh attempts
-let isRefreshing = false;
-// Array to hold all requests that are waiting for token refresh
-let failedQueue: Array<{
-  resolve: (value: unknown) => void;
-  reject: (reason?: unknown) => void;
-}> = [];
-
-const processQueue = (error: unknown, token: string | null = null) => {
-  failedQueue.forEach((prom) => {
-    if (error) {
-      prom.reject(error);
-    } else {
-      prom.resolve(token);
-    }
-  });
-  failedQueue = [];
-};
-
-// Add a request interceptor to inject the JWT token into the headers
-axiosInstance.interceptors.request.use(
-  async (config) => {
-    const token = Cookies.get("accessToken");
-
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-
-    // Handle CSRF token for refresh endpoint in production
-    // This is needed when JWT_COOKIE_CSRF_PROTECT = True in Flask-JWT-Extended config
-    if (config.url === "/auth/refresh" && config.method === "post") {
-      const csrfToken = Cookies.get("csrf_refresh_token");
-      if (csrfToken) {
-        // Send CSRF token in header for refresh requests to prevent CSRF attacks
-        config.headers["X-CSRF-TOKEN"] = csrfToken;
-      }
-    }
-
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
+// Request Interceptor to add CSRF token to headers
+axiosInstance.interceptors.request.use((config) => {
+  const csrfToken = Cookies.get("csrf_access_token");
+  if (csrfToken) {
+    config.headers["X-CSRF-TOKEN"] = csrfToken;
   }
-);
+  return config;
+});
 
-// Response interceptor for handling token refresh
+// Response Interceptor for automatic token refresh
 axiosInstance.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
 
-    // Check if it's a 401 error and not a retry request and not the refresh token request itself
+    // Check if the error is a 401, it's not a retry, and we should handle it automatically
     if (
       error.response?.status === 401 &&
       !originalRequest._retry &&
-      originalRequest.url !== "/auth/refresh"
+      !originalRequest._suppressRedirect
     ) {
-      originalRequest._retry = true; // Mark it as a retry
+      originalRequest._retry = true; // Mark as retried to prevent infinite loops
 
-      if (!isRefreshing) {
-        isRefreshing = true;
-        try {
-          // Use auth service to refresh the token
-          const data = await authService.refreshToken();
-          const newAccessToken = data.access_token;
-
-          // Update authorization header for the original request
-          axiosInstance.defaults.headers.common[
-            "Authorization"
-          ] = `Bearer ${newAccessToken}`;
-          originalRequest.headers["Authorization"] = `Bearer ${newAccessToken}`;
-
-          processQueue(null, newAccessToken);
-          return axiosInstance(originalRequest); // Retry the original request
-        } catch (refreshError) {
-          processQueue(refreshError, null);
-
-          // If refresh fails, logout the user
-          try {
-            await authService.logout();
-          } catch (logoutErr) {
-            console.error(
-              "Error calling logout during refresh failure:",
-              logoutErr
-            );
+      try {
+        // The refresh token cookie is sent automatically by the browser
+        await axiosInstance.post("/auth/refresh");
+        // Retry the original request with the new access token
+        return axiosInstance(originalRequest);
+      } catch (refreshError) {
+        // Only log unexpected refresh errors, not the expected 401s
+        if (
+          refreshError &&
+          typeof refreshError === "object" &&
+          "response" in refreshError
+        ) {
+          const axiosRefreshError = refreshError as {
+            response?: { status?: number };
+          };
+          if (axiosRefreshError.response?.status !== 401) {
+            console.error("Token refresh failed:", refreshError);
           }
-
-          localStorage.setItem(
-            "authError",
-            "Session expired. Please login again."
-          );
-          window.location.href = "/"; // Redirect to home/login
-          return Promise.reject(refreshError);
-        } finally {
-          isRefreshing = false;
         }
-      } else {
-        // If token is already refreshing, queue the original request
-        return new Promise((resolve, reject) => {
-          failedQueue.push({ resolve, reject });
-        })
-          .then((token) => {
-            originalRequest.headers["Authorization"] = "Bearer " + token;
-            return axiosInstance(originalRequest);
-          })
-          .catch((err) => {
-            return Promise.reject(err);
-          });
+
+        // **THIS IS THE KEY CHANGE**
+        // Only redirect if the original request did NOT have the suppress flag.
+        if (
+          !originalRequest._suppressRedirect &&
+          window.location.pathname !== "/login"
+        ) {
+          console.log(
+            "Redirecting to login for protected endpoint:",
+            originalRequest.url
+          );
+          window.location.href = "/login";
+        }
+
+        // If the flag was present, we just reject the promise and let the
+        // calling function handle the error gracefully.
+        return Promise.reject(refreshError);
       }
     }
+
     return Promise.reject(error);
   }
 );
-
-// Helper function to handle streaming responses
-export const streamResponse = async (
-  url: string,
-  data: Record<string, unknown>,
-  onData: (data: Record<string, unknown>) => void,
-  onError: (error: unknown) => void,
-  onComplete: () => void
-) => {
-  try {
-    const response = await fetch(`${axiosInstance.defaults.baseURL}${url}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "text/event-stream",
-        Authorization: `Bearer ${Cookies.get("accessToken")}`,
-      },
-      body: JSON.stringify(data),
-      credentials: "include", // This is equivalent to axios's withCredentials
-      mode: "cors", // Explicitly set CORS mode
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    if (!response.body) {
-      throw new Error("Response body is null");
-    }
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-
-    while (true) {
-      const { done, value } = await reader.read();
-
-      if (done) {
-        break;
-      }
-
-      const chunk = decoder.decode(value, { stream: true });
-      buffer += chunk;
-
-      let boundary = buffer.indexOf("\n\n");
-      while (boundary >= 0) {
-        const message = buffer.substring(0, boundary);
-        buffer = buffer.substring(boundary + 2);
-
-        if (message.startsWith("data:")) {
-          const dataString = message.substring(5).trim();
-          if (dataString) {
-            try {
-              const data = JSON.parse(dataString);
-              onData(data);
-            } catch (e) {
-              console.error(`Error parsing stream JSON:`, e);
-            }
-          }
-        }
-
-        boundary = buffer.indexOf("\n\n");
-      }
-    }
-
-    onComplete();
-  } catch (error) {
-    onError(error);
-  }
-};
 
 export default axiosInstance;
