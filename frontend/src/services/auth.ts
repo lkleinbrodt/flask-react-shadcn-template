@@ -33,9 +33,14 @@ export const authService = {
     // First, try to revoke the access token
     try {
       await axiosInstance.post("/auth/logout", {}, { _suppressRedirect: true });
-    } catch {
+    } catch (error) {
       // If access token is invalid, continue to refresh token revocation
-      console.warn("Access token logout failed, trying refresh token logout");
+      if (error && typeof error === "object" && "response" in error) {
+        const axiosError = error as { response?: { status?: number } };
+        console.warn(`Access token logout failed (status: ${axiosError.response?.status}), trying refresh token logout`);
+      } else {
+        console.warn("Access token logout failed with unexpected error type, trying refresh token logout");
+      }
     }
 
     // Then, try to revoke the refresh token
@@ -45,11 +50,14 @@ export const authService = {
         {},
         { _suppressRedirect: true }
       );
-    } catch {
+    } catch (error) {
       // If refresh token is also invalid, that's fine - user is already logged out
-      console.warn(
-        "Refresh token logout failed, user may already be logged out"
-      );
+      if (error && typeof error === "object" && "response" in error) {
+        const axiosError = error as { response?: { status?: number } };
+        console.warn(`Refresh token logout failed (status: ${axiosError.response?.status}), user may already be logged out`);
+      } else {
+        console.warn("Refresh token logout failed with unexpected error type, user may already be logged out");
+      }
     }
   },
 

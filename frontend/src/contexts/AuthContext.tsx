@@ -33,9 +33,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       // This means no valid token, so no user.
       // Only log if it's not a 401 (expected for unauthenticated users)
-      const axiosError = error as { response?: { status?: number } };
-      if (axiosError.response?.status !== 401) {
-        console.error("Error fetching user:", error);
+      if (error && typeof error === "object" && "response" in error) {
+        const axiosError = error as { response?: { status?: number } };
+        if (axiosError.response?.status !== 401) {
+          console.error("Error fetching user:", error);
+        }
+      } else {
+        // Log unexpected error types
+        console.error("Unexpected error type when fetching user:", error);
       }
       setUser(null);
     } finally {

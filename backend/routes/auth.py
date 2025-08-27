@@ -166,6 +166,10 @@ def reset_password(token):
 # --- ADAPTED OAUTH FLOW ---
 @auth_bp.route("/authorize/<provider>")
 def oauth_authorize(provider):
+    # Check if OAuth is configured for this provider
+    if provider not in current_app.config.get("OAUTH_CREDENTIALS", {}):
+        return jsonify(error="OAuth not configured for this provider"), 400
+    
     oauth = OAuthSignIn.get_provider(provider)
     return oauth.authorize()
 

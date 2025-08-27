@@ -21,6 +21,9 @@ class Config:
     ENV = os.environ.get("ENV", "development").lower()
 
     CORS_HEADERS = "Content-Type"
+    
+    # CORS configuration - extensible for different environments
+    CORS_ORIGINS = []
 
     SESSION_TYPE = "filesystem"
     SESSION_COOKIE_SAMESITE = None
@@ -38,8 +41,8 @@ class Config:
     JWT_COOKIE_CSRF_PROTECT = True
 
     # Set cookie security settings
-    # In production, this should be True. For development, False.
-    JWT_COOKIE_SECURE = os.getenv("FLASK_ENV") == "production"
+    # Can be overridden by JWT_COOKIE_SECURE environment variable
+    JWT_COOKIE_SECURE = os.getenv("JWT_COOKIE_SECURE", "false").lower() in ["true", "on", "1"]
 
     # Set SameSite to 'Lax' to prevent most CSRF attacks
     # Can be 'Strict' for higher security if it doesn't break cross-domain functionality
@@ -55,12 +58,22 @@ class Config:
     # Flask-JWT-Extended will use sensible defaults for cookie names and paths
     # Removed custom JWT_ACCESS_COOKIE_NAME, JWT_REFRESH_COOKIE_NAME, JWT_COOKIE_PATH, etc.
 
-    OAUTH_CREDENTIALS = {
-        "google": {
-            "id": os.environ.get("GOOGLE_CLIENT_ID"),
-            "secret": os.environ.get("GOOGLE_CLIENT_SECRET"),
+    # OAuth configuration with validation
+    OAUTH_CREDENTIALS = {}
+    
+    # Validate OAuth credentials if they exist
+    google_client_id = os.environ.get("GOOGLE_CLIENT_ID")
+    google_client_secret = os.environ.get("GOOGLE_CLIENT_SECRET")
+    
+    if google_client_id and google_client_secret:
+        OAUTH_CREDENTIALS["google"] = {
+            "id": google_client_id,
+            "secret": google_client_secret,
         }
-    }
+    elif google_client_id or google_client_secret:
+        # Log warning if only one is set
+        import logging
+        logging.warning("OAuth Google credentials incomplete: CLIENT_ID and CLIENT_SECRET must both be set")
 
     # Email configuration
     MAIL_SERVER = os.environ.get("MAIL_SERVER")
@@ -81,6 +94,9 @@ class DevelopmentConfig(Config):
     DEBUG = True
     FRONTEND_URL = "http://localhost:5173"
     SQLALCHEMY_DATABASE_URI = "sqlite:///" + os.path.join(Config.ROOT_DIR, "app.db")
+    
+    # Development CORS origins
+    CORS_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
     STRIPE_PUBLISHABLE_KEY = os.environ.get("STRIPE_PUBLISHABLE_KEY_TESTING")
     STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY_TESTING")
@@ -91,13 +107,22 @@ class ProductionConfig(Config):
     ENV = "production"
     # FRONTEND_URL = "https://PROJECT_NAME.com"
     DEBUG = False
-    SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL")
+    
+    # Production database URL is required
+    DATABASE_URL = os.environ.get("DATABASE_URL")
+    if not DATABASE_URL:
+        raise ValueError("DATABASE_URL environment variable is required for production")
+    SQLALCHEMY_DATABASE_URI = DATABASE_URL
+    
     CACHE_TYPE = "FileSystemCache"
     CACHE_DIR = os.path.join(os.getenv("TEMP", "/tmp"), "flask_cache")
     JWT_COOKIE_SECURE = True
     JWT_COOKIE_CSRF_PROTECT = True
     STRIPE_PUBLISHABLE_KEY = os.environ.get("STRIPE_PUBLISHABLE_KEY")
     STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY")
+    
+    # Production CORS origins - should be configured via environment
+    CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "").split(",") if os.environ.get("CORS_ORIGINS") else []
 
 
 class TestingConfig(Config):
@@ -108,3 +133,6 @@ class TestingConfig(Config):
     STRIPE_PUBLISHABLE_KEY = os.environ.get("STRIPE_PUBLISHABLE_KEY_TESTING")
     STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY_TESTING")
     MAIL_SUPPRESS_SEND = True  # Do not send emails during tests
+    
+    # Testing CORS origins
+    CORS_ORIGINS = ["http://localhost:8000"]
