@@ -56,6 +56,15 @@ axiosInstance.interceptors.response.use(
             console.error("Token refresh failed:", refreshError);
           }
         }
+        
+        // Log the specific error for debugging
+        if (refreshError && typeof refreshError === "object" && "message" in refreshError) {
+          console.error("Token refresh error details:", {
+            message: (refreshError as any).message,
+            status: (refreshError as any).response?.status,
+            url: (refreshError as any).config?.url
+          });
+        }
 
         // **THIS IS THE KEY CHANGE**
         // Only redirect if the original request did NOT have the suppress flag.

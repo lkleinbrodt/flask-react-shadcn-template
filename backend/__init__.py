@@ -19,10 +19,10 @@ def create_app(config_class: Config):
     migrate.init_app(app, db, directory=migrations_dir)
     mail.init_app(app)
 
-    # Initialize CORS with specific origins and credentials support
+    # Initialize CORS with configurable origins and credentials support
     cors.init_app(
         app,
-        origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+        origins=app.config.get("CORS_ORIGINS", []),
         supports_credentials=True,
     )
 

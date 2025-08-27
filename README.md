@@ -77,11 +77,13 @@ The primary goal of this template is to provide a solid foundation with pre-conf
     bash setup.sh
     ```
     The script performs the following actions:
-    - Creates a Python virtual environment (`venv/`).
-    - Installs all Python dependencies from `backend/requirements.txt`.
-    - Initializes the database and applies migrations.
-    - Installs all Node.js dependencies for the frontend.
-    - Starts both the Flask backend (on `http://localhost:5002`) and the Vite frontend (on `http://localhost:5173`).
+- Validates Python 3.8+ and Node.js 18+ versions
+- Creates a Python virtual environment (`venv/`)
+- Installs all Python dependencies from `backend/requirements.txt`
+- Initializes the database and applies migrations with error handling
+- Installs all Node.js dependencies for the frontend
+- Starts both the Flask backend (on `http://localhost:5000`) and the Vite frontend (on `http://localhost:5173`)
+- Provides detailed error messages and validation throughout the process
 
 ### Environment Variables
 
@@ -94,7 +96,7 @@ You need to create two environment files:
     # A strong, random string for signing sessions and JWTs.
     SECRET_KEY=your_super_secret_key
 
-    # Google OAuth Credentials
+    # Google OAuth Credentials (both must be set for OAuth to work)
     GOOGLE_CLIENT_ID=your_google_client_id.apps.googleusercontent.com
     GOOGLE_CLIENT_SECRET=your_google_client_secret
 
@@ -102,6 +104,9 @@ You need to create two environment files:
     STRIPE_PUBLISHABLE_KEY_TESTING=pk_test_...
     STRIPE_SECRET_KEY_TESTING=sk_test_...
     STRIPE_WEBHOOK_SECRET=whsec_...
+    
+    # Production Database (required for production deployment)
+    # DATABASE_URL=postgresql://user:password@localhost/dbname
 
     # Email Server Configuration (for password reset)
     # Example for SendGrid (use 'smtp.gmail.com' for Gmail, etc.)
@@ -111,12 +116,18 @@ You need to create two environment files:
     MAIL_USERNAME=apikey  # For SendGrid, the username is literally 'apikey'
     MAIL_PASSWORD=your_sendgrid_api_key
     MAIL_DEFAULT_SENDER="Your Name <noreply@yourdomain.com>"
+    
+    # JWT Cookie Security (optional, defaults to false for development)
+    JWT_COOKIE_SECURE=false
+    
+    # CORS Origins for Production (comma-separated list)
+    # CORS_ORIGINS=https://yourdomain.com,https://www.yourdomain.com
     ```
 
 2.  **Frontend (`frontend/.env.development`):** Create this file inside the `frontend` directory.
     ```env
     # frontend/.env.development
-    VITE_BASE_URL=http://127.0.0.1:5002/
+    VITE_BASE_URL=http://127.0.0.1:5000/
     ```
 
 ## Project Architecture
@@ -233,6 +244,18 @@ async function saveData(data) {
 ```
 
 This ensures consistent error messages and user feedback across the application.
+
+## Recent Improvements
+
+This template has been enhanced with the following improvements:
+
+- **Port Consistency**: Backend now consistently runs on port 5000
+- **OAuth Validation**: Graceful handling of missing OAuth credentials with warnings
+- **Configurable CORS**: CORS origins are now configurable per environment
+- **Environment Validation**: Production database URL is required and validated
+- **Enhanced Error Handling**: Better error logging and validation throughout
+- **Setup Script Robustness**: Improved error handling and validation in setup process
+- **Type Safety**: Better TypeScript error handling and type guards
 
 ## Customization
 
